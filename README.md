@@ -6,17 +6,33 @@
 **搭建环境：**
 `Ubuntu 18.04 + python 3.6 + tkinter`
 
+**备忘：**
+```
+2019.5.20
+翻转图元时，math模块对三角函数的计算有问题
+cos(135°) = -0.5
+cos(135/180 * pi) = 1
+上面两个值为何不相等
+
+待完成：翻转图元
+```
+
 **待实现功能：**
 - 重置画布 resetCanvas width height
+	- 删除canvas所有元素，然后重置窗口大小即可(canvas是始终铺满窗口的)
 - 保存画布 saveCanvas name.bmp
+	- 因为linux下通过截屏实现，所有保存的画布实际是整个屏幕
 - 设置画笔颜色 setColor R G B
+	- tkinter内使用16进制，要转换
 - 设置画笔粗细 setWidth width
 - 绘制线段 drawLine id x1 y1 x2 y2 algorithm
   - Bresenham
   - DDA
 - 绘制椭圆 drawEllipse id x y rx ry
   - 中点圆生成算法
--
+
+- 对图元平移 translate id dx dy
+- 对图元旋转 rotate id x y r
 
 **代码架构：**
 - 引入第三方库
@@ -31,7 +47,9 @@ import pyscreenshot as ImageGrab # 截图功能 for linux
 ```python
 window = Tk()  # 主窗口window
 canvas = Canvas(window, ...) # 主画布canvas
-menu = Menu(windows) # 主菜单menu
+menu = Menu(windows) # 顶部主菜单menu
+entry = Entry(..) # 接受命令行指令的输入
+button = Button(..) # 读入指令并执行
 ```
 
 - 全局变量
@@ -53,4 +71,10 @@ onLeftUp()    # 鼠标左键松开，停止画图
 ```python
 Bresenham() # bresenham算法画直线
 Draw_ellipse() # 中点圆生成算法画椭圆
+```
+
+-  相关函数
+```python
+toHex() # 将RGB转化成十六进制色彩表示
+
 ```

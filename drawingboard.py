@@ -6,9 +6,9 @@
 
 from tkinter import *
 import tkinter.messagebox as messagebox # 弹窗
+from math import * # 用到一些三角和反三角函数
 import pyscreenshot as ImageGrab  # for linux
 # from PIL import ImageGrab       # for MacOS and windows
-
 
 window = Tk() # 创建窗口对象
 window.title("Drawing Board") # 设置窗口标题
@@ -27,12 +27,20 @@ X,Y = IntVar(value=0), IntVar(value=0)
 ID = 0
 _id = 0
 # TODO 添加一个容器，存储画布上的所有图元，方便后面的平移和删除等操作
-All = []
+All = [] # 储存图元的ID
+for i in range(100000):
+    All.append([])
+pix = [] # 储存图元的所有坐标
+for i in range(100000):
+    pix.append([])
 tmp = []
 
 # 选择画笔的颜色和粗细
 Color_pen = '#000000'
 Width_pen = 2
+
+# 创建一块画布
+canvas = Canvas(window, bg='white',width=400,height=300) # 创建一块画布
 
 # 创建顶部菜单栏
 menu = Menu(window)
@@ -44,21 +52,20 @@ menu.add_cascade(label='文件',menu=File_menu)
 # linux下不可以使用PIL中的ImageGrab截图，因此用pyscreenshot代替
 # TODO 1.自定义保存的文件名  2.保存准确的窗口大小
 
-def File_save():
+def File_save(name='unamed'):
     pic = ImageGrab.grab()
-    pic.save('1.bmp')
-    messagebox.showinfo(title='warning',message='成功保存至当前目录：*.bmp')
+    name += '.bmp'
+    pic.save(name)
+    messagebox.showinfo(title='warning',message='图片'+name+'成功保存至当前目录！')
 
-def File_reset():
+def File_reset(size='800x600'):
     for i in canvas.find_all():
         canvas.delete(i)
+    window.geometry(size)
     messagebox.showinfo(title='warning',message='成功清空画布')
-
 
 File_menu.add_command(label='保存', command=File_save)
 File_menu.add_command(label='清空',command=File_reset)
-
-
 
 # 添加"Color"菜单栏 --选择画笔颜色
 Color_menu = Menu(menu, tearoff=0)
@@ -77,7 +84,6 @@ def Color_blue():
 Color_menu.add_command(label='黑色', command=Color_black)
 Color_menu.add_command(label='红色',   command=Color_red)
 Color_menu.add_command(label='蓝色', command=Color_blue)
-
 
 # 添加"Width"菜单栏 --设置画笔粗细
 Width_menu = Menu(menu, tearoff=0)
@@ -99,7 +105,6 @@ Width_menu.add_command(label='1 磅',   command=Width_1)
 Width_menu.add_command(label='3 磅',   command=Width_3)
 Width_menu.add_command(label='5 磅',   command=Width_5)
 
-
 # 添加"Draw Type"菜单栏 --切换绘制图形的类别
 Draw_menu = Menu(menu, tearoff=0)
 menu.add_cascade(label='绘图',menu=Draw_menu)
@@ -110,30 +115,122 @@ def Draw_point(x,y):
                         fill = Color_pen, outline = Color_pen,
                         width = Width_pen)
 
-
 def Choose_line():
     Type_draw.set(1)
-    messagebox.showinfo(title='warning',message='切换成功:开始绘制直线')
+    #messagebox.showinfo(title='warning',message='切换成功:开始绘制直线')
 
 def Choose_point():
     Type_draw.set(2)
-    messagebox.showinfo(title='warning',message='切换成功:开始绘制点')
+    #messagebox.showinfo(title='warning',message='切换成功:开始绘制点')
 
 def Choose_ellipse():
     Type_draw.set(3)
-    messagebox.showinfo(title='warning',message='切换成功:开始绘制椭圆')
+    #messagebox.showinfo(title='warning',message='切换成功:开始绘制椭圆')
 
+Draw_menu.add_command(label='点', command=Choose_point)
 Draw_menu.add_command(label='直线', command=Choose_line)
 Draw_menu.add_command(label='椭圆', command=Choose_ellipse)
+
 
 # 对图元删除，平移等操作
 Operate_menu = Menu(menu, tearoff=0)
 menu.add_cascade(label='操作',menu=Operate_menu)
 
-def Delete(_id):
+def toHex(RGB):
+    # 将RGB转化成16进制
+    # param: RGB = [255,255,255]
+    # return: #FFFFFF
+    global Color_pen
+    strs = '#'
+    for i in RGB:
+        num = int(i)
+        xx = str(hex(num))
+        if (len(xx) == 3):
+            strs += '0' + xx[-1]
+        else:
+            strs += xx[-2:]
+    Color_pen = strs
+
+def rotate(x0,y0,x,y,r):
+    # 将(x,y)绕(x0,y0)顺时针旋转r°后得到的坐标
+    r = radians(r)  # 转化成弧度制
+    if x-x0 == 0.0:
+        r1 = pi/2
+    else:
+        r1 = atan( (y-y0)/(x-x0) )  # (x,y)在(x0,y0)的坐标系中的角度
+    r1 += r  # 顺时针旋转r
+    x1, y1 = x * cos(r1) + x0, y * cos(r1) + y0
+    print ('角度:',r1)
+    print ('x0,y0:',x0,y0)
+    print (x,y)
+    print (x1,y1)
+    print ('\n')
+    return [x1, y1]
+
+def execute():
+    # TODO 执行命令行指令
+    cin = entry.get()
+    global All # 新画的图元添加到canvas的容器中
+    # setColor R G B 切换画笔颜色为(RGB)
+    if cin[:8] == 'setColor':
+        cin = cin[8:]
+        cin = cin.split()
+        RGB = []
+        for i in cin:
+            RGB.append(int(i))
+            toHex(RGB)
+    # resetCanvas width height (int) 重置画布，并设置宽高
+    if cin[:11] == 'resetCanvas':
+        cin = cin[11:]
+        cin = cin.split()
+        cin = cin[0] + 'x' + cin[1]
+        File_reset(cin)
+    # saveCanvas name 保存画布到*.bmp当前目录下
+    if cin[:10] == 'saveCanvas':
+        cin = cin[10:]
+        cin = cin.split()
+        File_save(cin[0])
+    # drawLine id x1 y1 x2 y2 DDA/Bresenham 绘制线段，注意给定了id，方便后面的操作
+    if cin[:8] == 'drawLine':
+        cin = cin[8:]
+        cin = cin.split()
+        _id = int(cin[0]) #图元编号
+        x1,y1,x2,y2 = float(cin[1]),float(cin[2]),float(cin[3]),float(cin[4])
+        for i in Bresenham(x1,y1,x2,y2):
+            pix[_id].append([i[0],i[1]])
+            All[_id].append(Draw_point(i[0],i[1]))
+
+    # TODO drawEllipse id x y rx ry 画椭圆
+    # translate id dx dy 对图元平移
+    if cin[:9] == 'translate':
+        cin = cin[9:]
+        cin = cin.split()
+        _id = int(cin[0]) #图元编号
+        dx, dy = float(cin[1]), float(cin[2])
+        for i in All[_id]:
+            canvas.move(i,dx,dy)
+    # rotate id x y r 将图元id绕(x,y)顺时针旋转r°
+    if cin[:6] == 'rotate':
+        cin = cin[6:]
+        cin = cin.split()
+        _id = int(cin[0])
+        x0, y0, r = float(cin[1]),float(cin[2]),float(cin[3])
+        now = []
+        for i in range(len(All[_id])):
+            canvas.delete(All[_id][i]) # 删除旧的图元
+            draw = rotate(x0,y0,pix[_id][i][0],pix[_id][i][1],r)
+            now.append(Draw_point(draw[0], draw[1]))
+        #All[_id] = now # 更新图元
+                 
+
+entry = Entry(window)
+button = Button(window,text='执行命令',command=execute)
+def Delete():
     # 提供输入框
-    for i in All[_id]:
+    cin =  entry.get()
+    for i in All[int(cin)-1]:
         canvas.delete(i)
+    #Message(window,text='椭圆 '+str(ID)).pack(side=LEFT)
 
 Operate_menu.add_command(label='删除',command=Delete)
 
@@ -178,23 +275,20 @@ def _Bresenham(x1, y1, x2, y2): #
         pointList.reverse()
         return pointList
 
+ans = []
 def Ellipsepot(x0, y0, x, y):
     # 运用椭圆的4路对称画点
-    ''' 
-    Draw_point((x0 + x), (y0 + y))
-    Draw_point((x0 + x), (y0 - y))
-    Draw_point((x0 - x), (y0 - y))
-    Draw_point((x0 - x), (y0 + y))
-    '''
-    t = 0.2
-    tmp.append(Draw_point((x0 + t*x), (y0 + t*y)))
-    tmp.append(Draw_point((x0 + t*x), (y0 - t*y)))
-    tmp.append(Draw_point((x0 - t*x), (y0 - t*y)))
-    tmp.append(Draw_point((x0 - t*x), (y0 + t*y)))
-
+    global ans
+    t = 0.3
+    ans.append([x0 + t*x, y0 + t*y])
+    ans.append([x0 + t*x, y0 - t*y])
+    ans.append([x0 - t*x, y0 - t*y])
+    ans.append([x0 - t*x, y0 + t*y])
 
 def Draw_ellipse(x0, y0, a, b):
     # 中点圆生成算法画椭圆
+    global ans
+    ans = []
     sqa = a*a;
     sqb = b*b;
     d = sqb + sqa*(0.25 - b);
@@ -218,12 +312,9 @@ def Draw_ellipse(x0, y0, a, b):
             d += sqa * ((-2) * y + 3)
         y -= 1
         Ellipsepot(x0, y0, x, y)
+    return ans
 
 
-# 创建一块画布
-#image = PhotoImage()
-canvas = Canvas(window, bg='white',width=400,height=300) # 创建一块画布
-#canvas.create_image(400,300,image=image)
 
 # 鼠标左键单击，允许开始画图
 def onLeftDown(event):
@@ -231,9 +322,6 @@ def onLeftDown(event):
     # 当前单击坐标记录为绘图的初始位置
     X.set(event.x)
     Y.set(event.y)
-    if Type_draw.get() == 2:
-        # 画点
-        Draw_point(X.get(),Y.get())
 
 # 按住鼠标左键，开始画图
 def onLeftMove(event):
@@ -248,61 +336,60 @@ def onLeftMove(event):
         Y.set(event.y)
     if Type_draw.get() == 1:
         # 绘制直线
-        try:
-            for i in tmp:
-                canvas.delete(i)
-        except Exception as e:
-            pass
+        for i in tmp:
+            canvas.delete(i)
         for i in Bresenham(X.get(), Y.get(), event.x, event.y):
             tmp.append(Draw_point(i[0],i[1]))
-        #ID = canvas.create_line(X.get(), Y.get(), event.x, event.y, 
-        #        fill=Color_pen, width=Width_pen)
     if Type_draw.get() == 3:
         # 绘制椭圆
-        try:
-            for i in tmp:
-                canvas.delete(i)
-        except Exception as e:
-            pass
-        Draw_ellipse(X.get(), Y.get(), event.x, event.y)
+        for i in tmp:
+            canvas.delete(i)
+        for i in Draw_ellipse(X.get(), Y.get(), event.x, event.y):
+            tmp.append(Draw_point(i[0],i[1]))
          
     
 # 松开鼠标左键,停止画图
 def onLeftUp(event):
     Flag_draw.set(0)
-    global ID,_id
+    global ID,_id, tmp
+    if Type_draw.get() == 2:
+        # 打印出点的坐标
+        All.append([])
+        All[ID].append(Draw_point(event.x,event.y))
+        ID += 1
+
     if Type_draw.get() == 1:
         # 绘制直线，此直线要添加到容器中
         All.append([])
+        for i in tmp:
+            canvas.delete(i)
         for i in Bresenham(X.get(), Y.get(), event.x, event.y):
             All[ID].append(Draw_point(i[0],i[1]))
-        _id = ID
+        #for i in All[ID-1]:
+        #    canvas.delete(i)
         ID += 1
         Message(window,text='直线 '+str(ID)).pack(side=LEFT)
-        Operate_menu.add_command(label='直线'+str(ID),command=Delete(_id))
-        messagebox.showinfo(title='warning',message='该直线ID:'+str(ID))
-           
-
+        #Operate_menu.add_command(label='直线'+str(ID),command=Delete(_id))
 
     if Type_draw.get() == 3:
         # 绘制椭圆
         All.append([])
-        All[ID].append(Draw_ellipse(X.get(), Y.get(), event.x, event.y))
-        _id = ID
+        for i in tmp:
+            canvas.delete(i)
+        for i in Draw_ellipse(X.get(), Y.get(), event.x, event.y):
+            All[ID].append(Draw_point(i[0],i[1]))
         ID += 1
         Message(window,text='椭圆 '+str(ID)).pack(side=LEFT)
-        Operate_menu.add_command(label='椭圆'+str(ID),command=lambda:Delete(_id))
-        messagebox.showinfo(title='warning',message='该椭圆ID:'+str(ID))
+        #messagebox.showinfo(title='warning',message='该椭圆ID:'+str(ID))
     
     Flag_draw.set(0)    
-    global tmp
     tmp = []
-
-
 
 canvas.bind('<Button-1>',onLeftDown) # 绑定"单击鼠标左键"的事件
 canvas.bind('<B1-Motion>',onLeftMove) # 绑定"按住鼠标左键"的事件
 canvas.bind('<ButtonRelease-1>',onLeftUp) # 绑定"松开鼠标左键"的事件
 canvas.pack(fill=BOTH, expand=YES)
+entry.pack()
+button.pack()
 window.config(menu=menu)
 window.mainloop()
