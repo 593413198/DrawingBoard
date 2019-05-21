@@ -5,13 +5,13 @@
 # @envir: linux+python3+tkinter
 
 from tkinter import *
-import tkinter.messagebox as messagebox # 弹窗
+import tkinter.messagebox as messagebox
 from math import * # 用到一些三角和反三角函数
 import pyscreenshot as ImageGrab  # for linux
 # from PIL import ImageGrab       # for MacOS and windows
 
 window = Tk() # 创建窗口对象
-window.title("Drawing Board") # 设置窗口标题
+window.title("Luhao - Drawing Board") # 设置窗口标题
 window.geometry("800x600") # 窗口的初始化大小
 
 # 控制是否允许画图 0:允许画图  1:不允许画图
@@ -154,17 +154,15 @@ def toHex(RGB):
 def rotate(x0,y0,x,y,r):
     # 将(x,y)绕(x0,y0)顺时针旋转r°后得到的坐标
     r = radians(r)  # 转化成弧度制
-    if x-x0 == 0.0:
+    if x-x0 == 0.0: # 讨论不同的象限
         r1 = pi/2
-    else:
+    elif x-x0 > 0.0:
         r1 = atan( (y-y0)/(x-x0) )  # (x,y)在(x0,y0)的坐标系中的角度
+    else:
+        r1 = pi + atan( (y-y0)/(x-x0) )
     r1 += r  # 顺时针旋转r
-    x1, y1 = x * cos(r1) + x0, y * cos(r1) + y0
-    print ('角度:',r1)
-    print ('x0,y0:',x0,y0)
-    print (x,y)
-    print (x1,y1)
-    print ('\n')
+    l = sqrt( (x-x0)**2 + (y-y0)**2 )
+    x1, y1 = cos(r1) * l + x0, sin(r1) * l + y0
     return [x1, y1]
 
 def execute():
@@ -199,8 +197,34 @@ def execute():
         for i in Bresenham(x1,y1,x2,y2):
             pix[_id].append([i[0],i[1]])
             All[_id].append(Draw_point(i[0],i[1]))
+        Message(window,text='直线\n'+str(_id)).pack(side=LEFT)
+    # drawEllipse id x y rx ry 画椭圆
+    if cin[:11] == 'drawEllipse':
+        cin = cin[11:]
+        cin = cin.split()
+        _id = int (cin[0])
+        x,y,rx,ry = float(cin[1]),float(cin[2]),float(cin[3]),float(cin[4])
+        for i in Draw_ellipse(x,y,rx,ry):
+            pix[_id].append([i[0],i[1]])
+            All[_id].append(Draw_point(i[0],i[1]))
+        Message(window,text='椭圆\n'+str(_id)).pack(side=LEFT)
+    # drawPolygon id n DDA/Bresenham x1 y1 x2 y2 ..... xn yn
+    if cin[:11] == 'drawPolygon':
+        cin = cin[11:]
+        cin = cin.split()
+        _id, n = int(cin[0]), int(cin[1])
+        how = cin[2] # 选择的算法
+        point = []
+        for i in range(n):
+            point.append( [ int(cin[i*2+3]), int(cin[i*2+4]) ] )
+        # 下面一次做出n条线段
+        point.append([point[0][0],point[0][1]])
+        for i in range(n):
+            for j in Bresenham(point[i][0],point[i][1],point[i+1][0],point[i+1][1]):
+                pix[_id].append([j[0],j[1]])
+                All[_id].append(Draw_point(j[0],j[1]))
+        Message(window,text='多边形\n'+str(_id)).pack(side=LEFT)
 
-    # TODO drawEllipse id x y rx ry 画椭圆
     # translate id dx dy 对图元平移
     if cin[:9] == 'translate':
         cin = cin[9:]
@@ -209,6 +233,9 @@ def execute():
         dx, dy = float(cin[1]), float(cin[2])
         for i in All[_id]:
             canvas.move(i,dx,dy)
+        for i in range(len(All[_id])):
+            pix[_id][i][0] += dx
+            pix[_id][i][1] += dy
     # rotate id x y r 将图元id绕(x,y)顺时针旋转r°
     if cin[:6] == 'rotate':
         cin = cin[6:]
@@ -220,10 +247,22 @@ def execute():
             canvas.delete(All[_id][i]) # 删除旧的图元
             draw = rotate(x0,y0,pix[_id][i][0],pix[_id][i][1],r)
             now.append(Draw_point(draw[0], draw[1]))
-        #All[_id] = now # 更新图元
-                 
+            pix[_id][i][0] = draw[0]
+            pix[_id][i][1] = draw[1]
+        All[_id] = now # 更新图元
+    # scale id x y s 以(x,y)为中心缩放s倍
+    if cin[:5] == 'scale':
+        cin = cin[5:]
+        cin = cin.split()
+        _id = int(cin[0])
+        x0, y0 = float(cin[1]), float(cin[2]) # 缩放中心
+        s = float(cin[3]) # 缩放倍数
+        for i in range(len(All[_id])):
+            canvas.scale(All[_id][i],x0,y0,s,s)
+            #canvas.delete(All[_id][i]) # 删除旧的图元
+        
 
-entry = Entry(window)
+entry = Entry(window, width=40)
 button = Button(window,text='执行命令',command=execute)
 def Delete():
     # 提供输入框
@@ -328,12 +367,6 @@ def onLeftMove(event):
     global ID
     if not Flag_draw:
         return
-    if Type_draw.get() == 0:
-        # 绘制曲线
-        canvas.create_line(X.get(),Y.get(),event.x,event.y, 
-                        fill = Color_pen, width = Width_pen)
-        X.set(event.x)
-        Y.set(event.y)
     if Type_draw.get() == 1:
         # 绘制直线
         for i in tmp:
@@ -365,10 +398,11 @@ def onLeftUp(event):
             canvas.delete(i)
         for i in Bresenham(X.get(), Y.get(), event.x, event.y):
             All[ID].append(Draw_point(i[0],i[1]))
+            pix[ID].append( [i[0],i[1]] )
         #for i in All[ID-1]:
         #    canvas.delete(i)
         ID += 1
-        Message(window,text='直线 '+str(ID)).pack(side=LEFT)
+        Message(window,text='直线 '+str(ID-1)).pack(side=LEFT)
         #Operate_menu.add_command(label='直线'+str(ID),command=Delete(_id))
 
     if Type_draw.get() == 3:
@@ -378,12 +412,16 @@ def onLeftUp(event):
             canvas.delete(i)
         for i in Draw_ellipse(X.get(), Y.get(), event.x, event.y):
             All[ID].append(Draw_point(i[0],i[1]))
+            pix[ID].append( [i[0],i[1]] )
         ID += 1
-        Message(window,text='椭圆 '+str(ID)).pack(side=LEFT)
+        Message(window,text='椭圆 '+str(ID-1)).pack(side=LEFT)
         #messagebox.showinfo(title='warning',message='该椭圆ID:'+str(ID))
     
     Flag_draw.set(0)    
     tmp = []
+
+#a = canvas.create_rectangle(10,10,30,30, width = Width_pen)
+#canvas.scale(a,0,0,1,5)
 
 canvas.bind('<Button-1>',onLeftDown) # 绑定"单击鼠标左键"的事件
 canvas.bind('<B1-Motion>',onLeftMove) # 绑定"按住鼠标左键"的事件
