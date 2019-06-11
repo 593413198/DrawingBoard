@@ -4,10 +4,17 @@
 # @author: 161240045 鲁昊
 # @envir: linux+python3+tkinter
 
+'''
+70 100
+220 200
+'''
+
 from tkinter import *
 import tkinter.messagebox as messagebox
 from math import * # 用到一些三角和反三角函数
-import pyscreenshot as ImageGrab  # for linux
+import pyscreenshot as ImageGrab  # 一个截屏工具for linux
+import sys # 用以接受命令行参数
+import time 
 # from PIL import ImageGrab       # for MacOS and windows
 
 window = Tk() # 创建窗口对象
@@ -33,6 +40,7 @@ for i in range(100000):
 pix = [] # 储存图元的所有坐标
 for i in range(100000):
     pix.append([])
+Color_list = [0]*100000 # 用于存储每个图元的颜色,为了平移和旋转不改变原颜色
 tmp = []
 
 # 选择画笔的颜色和粗细
@@ -53,16 +61,16 @@ menu.add_cascade(label='文件',menu=File_menu)
 # TODO 1.自定义保存的文件名  2.保存准确的窗口大小
 
 def File_save(name='unamed'):
-    pic = ImageGrab.grab()
+    pic = ImageGrab.grab((50,110,220,250))
     name += '.bmp'
     pic.save(name)
-    messagebox.showinfo(title='warning',message='图片'+name+'成功保存至当前目录！')
+    #messagebox.showinfo(title='warning',message='图片'+name+'成功保存至当前目录！')
 
 def File_reset(size='800x600'):
     for i in canvas.find_all():
         canvas.delete(i)
     window.geometry(size)
-    messagebox.showinfo(title='warning',message='成功清空画布')
+    #messagebox.showinfo(title='warning',message='成功清空画布')
 
 File_menu.add_command(label='保存', command=File_save)
 File_menu.add_command(label='清空',command=File_reset)
@@ -131,11 +139,6 @@ Draw_menu.add_command(label='点', command=Choose_point)
 Draw_menu.add_command(label='直线', command=Choose_line)
 Draw_menu.add_command(label='椭圆', command=Choose_ellipse)
 
-
-# 对图元删除，平移等操作
-Operate_menu = Menu(menu, tearoff=0)
-menu.add_cascade(label='操作',menu=Operate_menu)
-
 def toHex(RGB):
     # 将RGB转化成16进制
     # param: RGB = [255,255,255]
@@ -165,10 +168,12 @@ def rotate(x0,y0,x,y,r):
     x1, y1 = cos(r1) * l + x0, sin(r1) * l + y0
     return [x1, y1]
 
-def execute():
+def execute(cin=None):
     # TODO 执行命令行指令
-    cin = entry.get()
-    global All # 新画的图元添加到canvas的容器中
+    if cin == None:
+        cin = entry.get()
+    global All, Color_pen # 新画的图元添加到canvas的容器中
+
     # setColor R G B 切换画笔颜色为(RGB)
     if cin[:8] == 'setColor':
         cin = cin[8:]
@@ -177,53 +182,91 @@ def execute():
         for i in cin:
             RGB.append(int(i))
             toHex(RGB)
+
     # resetCanvas width height (int) 重置画布，并设置宽高
     if cin[:11] == 'resetCanvas':
         cin = cin[11:]
         cin = cin.split()
         cin = cin[0] + 'x' + cin[1]
         File_reset(cin)
+
     # saveCanvas name 保存画布到*.bmp当前目录下
     if cin[:10] == 'saveCanvas':
         cin = cin[10:]
         cin = cin.split()
         File_save(cin[0])
+
     # drawLine id x1 y1 x2 y2 DDA/Bresenham 绘制线段，注意给定了id，方便后面的操作
     if cin[:8] == 'drawLine':
         cin = cin[8:]
         cin = cin.split()
         _id = int(cin[0]) #图元编号
         x1,y1,x2,y2 = float(cin[1]),float(cin[2]),float(cin[3]),float(cin[4])
-        for i in Bresenham(x1,y1,x2,y2):
-            pix[_id].append([i[0],i[1]])
-            All[_id].append(Draw_point(i[0],i[1]))
-        Message(window,text='直线\n'+str(_id)).pack(side=LEFT)
+        Color_list[_id] = Color_pen
+        if cin[5] == 'DDA': #用DDA算法绘制直线
+            for i in DDA(x1,y1,x2,y2):
+                pix[_id].append([i[0],i[1]])
+                All[_id].append(Draw_point(i[0],i[1]))
+            Message(window,text='直线\n'+str(_id)).pack(side=LEFT)
+        elif cin[5] == 'Bresenham': #用Bresenham算法绘制直线
+            for i in Bresenham(x1,y1,x2,y2):
+                pix[_id].append([i[0],i[1]])
+                All[_id].append(Draw_point(i[0],i[1]))
+            Message(window,text='直线\n'+str(_id)).pack(side=LEFT)
+
     # drawEllipse id x y rx ry 画椭圆
     if cin[:11] == 'drawEllipse':
         cin = cin[11:]
         cin = cin.split()
         _id = int (cin[0])
         x,y,rx,ry = float(cin[1]),float(cin[2]),float(cin[3]),float(cin[4])
+        Color_list[_id] = Color_pen
         for i in Draw_ellipse(x,y,rx,ry):
             pix[_id].append([i[0],i[1]])
             All[_id].append(Draw_point(i[0],i[1]))
         Message(window,text='椭圆\n'+str(_id)).pack(side=LEFT)
-    # drawPolygon id n DDA/Bresenham x1 y1 x2 y2 ..... xn yn
+
+    # drawPolygon id n DDA/Bresenham x1 y1 x2 y2 ..... xn yn　画多边形
     if cin[:11] == 'drawPolygon':
         cin = cin[11:]
         cin = cin.split()
         _id, n = int(cin[0]), int(cin[1])
         how = cin[2] # 选择的算法
-        point = []
+        point = [] # 多边形的所有顶点
+        Color_list[_id] = Color_pen
         for i in range(n):
             point.append( [ int(cin[i*2+3]), int(cin[i*2+4]) ] )
+        point.append([point[0][0],point[0][1]]) # 最后记得首尾相连
         # 下面一次做出n条线段
-        point.append([point[0][0],point[0][1]])
+        if how == 'DDA': # 采用DDA算法
+            for i in range(n):
+                for j in DDA(point[i][0],point[i][1],point[i+1][0],point[i+1][1]):
+                    pix[_id].append([j[0],j[1]])
+                    All[_id].append(Draw_point(j[0],j[1]))
+            Message(window,text='多边形\n'+str(_id)).pack(side=LEFT)
+
+        elif how == 'Bresenham': # 采用Bresenham算法
+            for i in range(n):
+                for j in Bresenham(point[i][0],point[i][1],point[i+1][0],point[i+1][1]):
+                    pix[_id].append([j[0],j[1]])
+                    All[_id].append(Draw_point(j[0],j[1]))
+            Message(window,text='多边形\n'+str(_id)).pack(side=LEFT)
+
+    # drawCurve id n Bezier/B-spline x1 y1 .... xn yn 画曲线
+    if cin[:9] == 'drawCurve':
+        cin = cin[9:]
+        cin = cin.split()
+        _id, n = int(cin[0]), int(cin[1])
+        how = cin[2] # 选择的绘制算法
+        point = [] # 曲线的起点，控制点，终点
         for i in range(n):
-            for j in Bresenham(point[i][0],point[i][1],point[i+1][0],point[i+1][1]):
-                pix[_id].append([j[0],j[1]])
-                All[_id].append(Draw_point(j[0],j[1]))
-        Message(window,text='多边形\n'+str(_id)).pack(side=LEFT)
+            point.append( [ int(cin[i*2+3]), int(cin[i*2+4]) ] )
+        todraw = Bezier(point) # 通过Bezier算法计算出所有要连接的点
+        L = len(todraw)
+        for i in range(L-1):
+            canvas.create_line(todraw[i][0],todraw[i][1],todraw[i+1][0],todraw[i+1][1], fill=Color_pen, width=Width_pen) # 这里把计算出来的点依次相连得到曲线,因为画曲线关键是Bezier,所以这里没用自己的画直线函数
+        Message(window,text='曲线\n'+str(_id)).pack(side=LEFT)
+        
 
     # translate id dx dy 对图元平移
     if cin[:9] == 'translate':
@@ -236,13 +279,17 @@ def execute():
         for i in range(len(All[_id])):
             pix[_id][i][0] += dx
             pix[_id][i][1] += dy
+
     # rotate id x y r 将图元id绕(x,y)顺时针旋转r°
     if cin[:6] == 'rotate':
+        # 注意不能改变原来的颜色
         cin = cin[6:]
         cin = cin.split()
         _id = int(cin[0])
         x0, y0, r = float(cin[1]),float(cin[2]),float(cin[3])
         now = []
+        Color_tmp = Color_pen
+        Color_pen = Color_list[_id]
         for i in range(len(All[_id])):
             canvas.delete(All[_id][i]) # 删除旧的图元
             draw = rotate(x0,y0,pix[_id][i][0],pix[_id][i][1],r)
@@ -250,6 +297,8 @@ def execute():
             pix[_id][i][0] = draw[0]
             pix[_id][i][1] = draw[1]
         All[_id] = now # 更新图元
+        Color_pen = Color_tmp
+
     # scale id x y s 以(x,y)为中心缩放s倍
     if cin[:5] == 'scale':
         cin = cin[5:]
@@ -261,9 +310,20 @@ def execute():
             canvas.scale(All[_id][i],x0,y0,s,s)
             #canvas.delete(All[_id][i]) # 删除旧的图元
         
+def Execute():
+    # 用于执行input.txt文件中的所有命令行文件
+    f = open('input.txt','r')
+    for i in f:
+        i = i[:-1]
+        execute(i)
+        canvas.update()
+    f.close()
+    #messagebox.showinfo(title='提示',message='所有命令行执行完毕！')
+
 
 entry = Entry(window, width=40)
-button = Button(window,text='执行命令',command=execute)
+button = Button(window,text='执行上述命令',command=execute)
+button1= Button(window,text='执行input.txt中所有命令',command=Execute)
 def Delete():
     # 提供输入框
     cin =  entry.get()
@@ -271,8 +331,25 @@ def Delete():
         canvas.delete(i)
     #Message(window,text='椭圆 '+str(ID)).pack(side=LEFT)
 
-Operate_menu.add_command(label='删除',command=Delete)
+def sign(x):
+    if x>1:
+        return 1
+    if x==0:
+        return 0
+    return -1
 
+def DDA(x1, y1, x2, y2):
+    # 运用DDA算法绘制直线
+    pointList = []
+    L = max(abs(x1-x2), abs(y1-y2))
+    dx, dy = (x2-x1)/L, (y2-y1)/L
+    x, y = x1+0.5*sign(dx), y1+0.5*sign(dy)
+    i = 1
+    while i<L:
+        pointList.append([x,y])
+        x, y = x+dx, y+dy
+        i += 1
+    return pointList
 
 
 def Bresenham(x1, y1, x2, y2):
@@ -290,8 +367,7 @@ def Bresenham(x1, y1, x2, y2):
         pointList = _Bresenham(y1, x1, y2, x2)
         return [[p[1], p[0]] for p in pointList]
 
-
-def _Bresenham(x1, y1, x2, y2): #
+def _Bresenham(x1, y1, x2, y2): 
     slope = (y2 - y1) / (x2 - x1)
     p = 2 * slope - 1
     [x, y] = [x1, y1]
@@ -318,42 +394,64 @@ ans = []
 def Ellipsepot(x0, y0, x, y):
     # 运用椭圆的4路对称画点
     global ans
-    t = 0.3
-    ans.append([x0 + t*x, y0 + t*y])
-    ans.append([x0 + t*x, y0 - t*y])
-    ans.append([x0 - t*x, y0 - t*y])
-    ans.append([x0 - t*x, y0 + t*y])
+    ans.append([x0 + x, y0 + y])
+    ans.append([x0 + x, y0 - y])
+    ans.append([x0 - x, y0 - y])
+    ans.append([x0 - x, y0 + y])
 
 def Draw_ellipse(x0, y0, a, b):
     # 中点圆生成算法画椭圆
     global ans
     ans = []
-    sqa = a*a;
-    sqb = b*b;
-    d = sqb + sqa*(0.25 - b);
-    x = 0;
-    y = b;
+    rx2 = a*a;
+    ry2 = b*b;
+    x, y = 0, b
+    px, py = 0, 2*rx2*y
     Ellipsepot(x0, y0, x, y);
-    while sqb*(x + 1) < sqa*(y - 0.5):
-        if d < 0:
-            d += sqb*(2 * x + 3)
-        else:
-            d += (sqb*(2 * x + 3) + sqa*((-2)*y + 2))
-            y -= 1
+    p = round( ry2 - rx2*b + 0.25*rx2 )
+    while px < py:
         x += 1
-        Ellipsepot(x0, y0, x, y)
-    d = (b * (x + 0.5)) * 2 + (a * (y - 1)) * 2 - (a * b) * 2
-    while (y > 0):
-        if d < 0:
-            d += sqb * (2 * x + 2) + sqa * ((-2) * y + 3)
-            x += 1
+        px += 2*ry2
+        if p < 0:
+            p += ry2 + px
         else:
-            d += sqa * ((-2) * y + 3)
+            y -= 1
+            py -= 2*rx2
+            p += ry2 + px - py
+        Ellipsepot(x0, y0, x, y)
+    p = round( ry2*(x+0.5)*(x+0.5) + rx2*(y-1)**2 - rx2*ry2 )    
+    while y > 0:
         y -= 1
+        py -= 2*rx2
+        if p > 0:
+            p += rx2 - py
+        else:
+            x += 1
+            px += rx2*2
+            p += rx2 - py + px
         Ellipsepot(x0, y0, x, y)
     return ans
 
+# 提前计算一些组合数
+C = [1]*10
+for i in range(10):
+    C[i] = [1]*10
+for i in range(2,10):
+    for j in range(1,i):
+        C[i][j] = C[i-1][j] + C[i-1][j-1]
 
+def Bezier(x): # 运用Bezier算法画曲线，其中x是[[x1,y1],[x2,y2],...]的形式
+    point = []
+    n = len(x)-1 # 点的数目
+    t = 0
+    while t<=1:
+        X, Y = 0, 0
+        for i in range(n+1):
+            X += C[n][i]*t**i*(1-t)**(n-i)*x[i][0]
+            Y += C[n][i]*t**i*(1-t)**(n-i)*x[i][1]
+        point.append([X,Y])
+        t+=0.05
+    return point
 
 # 鼠标左键单击，允许开始画图
 def onLeftDown(event):
@@ -399,8 +497,6 @@ def onLeftUp(event):
         for i in Bresenham(X.get(), Y.get(), event.x, event.y):
             All[ID].append(Draw_point(i[0],i[1]))
             pix[ID].append( [i[0],i[1]] )
-        #for i in All[ID-1]:
-        #    canvas.delete(i)
         ID += 1
         Message(window,text='直线 '+str(ID-1)).pack(side=LEFT)
         #Operate_menu.add_command(label='直线'+str(ID),command=Delete(_id))
@@ -420,8 +516,6 @@ def onLeftUp(event):
     Flag_draw.set(0)    
     tmp = []
 
-#a = canvas.create_rectangle(10,10,30,30, width = Width_pen)
-#canvas.scale(a,0,0,1,5)
 
 canvas.bind('<Button-1>',onLeftDown) # 绑定"单击鼠标左键"的事件
 canvas.bind('<B1-Motion>',onLeftMove) # 绑定"按住鼠标左键"的事件
@@ -429,5 +523,6 @@ canvas.bind('<ButtonRelease-1>',onLeftUp) # 绑定"松开鼠标左键"的事件
 canvas.pack(fill=BOTH, expand=YES)
 entry.pack()
 button.pack()
+button1.pack()
 window.config(menu=menu)
 window.mainloop()

@@ -9,9 +9,10 @@
 **使用指南：**
 ![画板界面图片](/example.png)
 
-### 运行：linux下make执行或其他环境编译运行drawingboard.py文件，相关库都在同目录下
+### 运行：linux环境下，make编译运行，执行用户端程序
 ### 用户界面：通过顶部菜单实现，如画椭圆，点击“绘图”-“椭圆”后拖动画图
-### 命令行界面：在底部文本框输入指令，点击按钮执行，一次只能执行一条
+### 命令行手动输入：在界面底部文本框输入指令，点击按钮”执行上述命令“执行，一次只能执行一条
+### 命令行自动读取并执行：在图形界面点击按钮“执行input.txt中所有命令”，请务必以input.txt命名，且多边形和曲线的点坐标不要换，且多边形和曲线的点坐标不要换行..
 ### 最底部显示canvas上的所有图元，包括 “类型”+“ID”
 <br/>
 <br/>
@@ -21,9 +22,14 @@
 - 重置画布 resetCanvas width height
 - 保存画布 saveCanvas name.bmp
 - 设置画笔颜色 setColor R G B
-- 绘制线段 drawLine id x1 y1 x2 y2 algorithm
+- 绘制线段 drawLine id algorithm x1 y1 x2 y2
+ - DDA + Bresenham算法
 - 绘制椭圆 drawEllipse id x y rx ry
-- 绘制多边形 drawPolygon id n x1 y1 x2 y2 ... xn yn
+ - 中点圆算法
+- 绘制多边形 drawPolygon id n algorihtm x1 y1 x2 y2 ... xn yn
+ - DDA + Bresenham算法
+- 绘制曲线　drawCurve id n algorithm x1 y1 ... xn yn
+ - Bezier算法
 - 对图元平移 translate id dx dy
 - 对图元旋转 rotate id x y r
 - 对图元缩放 scale id x y s
@@ -52,6 +58,7 @@ Type_draw # 记录画图的类型  1:直线 2:点 3:椭圆
 Flag_draw # 记录是否允许画图  0:不允许 1:允许
 Color_pen # 画笔颜色 采用16进制表示
 Width_pen # 画笔粗细
+Color_list # 存储每个图元的颜色
 ```
 - 鼠标事件
 ```python
@@ -63,6 +70,7 @@ onLeftUp()    # 鼠标左键松开，停止画图
 - 绘图算法
 ```python
 Draw_point() # 画点函数
+DDA() # DDA算法画直线
 Bresenham() # bresenham算法画直线
 Draw_ellipse() # 中点圆生成算法画椭圆
 ```
@@ -73,5 +81,4 @@ toHex() # 将RGB转化成十六进制色彩表示
 rotate() # 旋转指定点
 execute() # 读入命令行并执行
 ```
-
 
