@@ -8,14 +8,15 @@
 `Ubuntu 18.04 + python 3.6 + tkinter`
 
 **界面预览：**
+
 ![界面预览](https://img-blog.csdnimg.cn/2019061122345931.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L2x1aGFvMTk5ODA5MDk=,size_1,color_FFFFFF,t_70)
+
 #### 使用指南
 **运行**：linux环境下，make编译运行，执行用户端程序
 **用户界面**：见图
 **命令行界面**：
 - **命令行手动输入**：在界面底部文本框输入指令，点击按钮”**执行上述命令**“执行，一次只能执行一条
 - **命令行自动读取并执行**：在图形界面点击按钮“**执行input.txt中所有命令**”，请务必以**input.txt**命名，且多边形和曲线的**点坐标不要换行**
-
 <br/>
 <br/>
 
